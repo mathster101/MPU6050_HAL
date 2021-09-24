@@ -1,0 +1,6 @@
+# Ignore everything
+*/*
+# except
+!/Inc/MPU6050HAL.h
+!/Src/MPU6050HAL.cpp
+!/Src/main.cpp
