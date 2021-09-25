@@ -25,6 +25,7 @@
 #include <MPU6050HAL.h>
 #include <string.h>
 #include <stdio.h>
+#include <mathster_fir.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -98,26 +99,35 @@ int main(void) {
 	MX_I2C1_Init();
 	MX_TIM10_Init();
 	/* USER CODE BEGIN 2 */
+	sprintf(strbuf, "\033\143");
+	HAL_UART_Transmit(&huart2, (uint8_t*)strbuf, strlen(strbuf), 100);
 	MPU6050_HAL mpu(&hi2c1);
-	double accel[3];
-	double angles[2];
+	//double accel[3];
+	double angles[3];
 	if (mpu.initialize() == HAL_OK) {
 		sprintf(strbuf, "Sensor Initialized\r\n");
 		HAL_UART_Transmit(&huart2, (uint8_t*) strbuf, strlen(strbuf), 100);
 		HAL_Delay(1000);
 	}
+	else{
+		sprintf(strbuf, "Sensor Error\r\n");
+		HAL_UART_Transmit(&huart2, (uint8_t*) strbuf, strlen(strbuf), 100);
+		while(1);
+	}
+
 	/* USER CODE END 2 */
 
 	/* Infinite loop */
 	/* USER CODE BEGIN WHILE */
 	while (1) {
-		mpu.get_rp_acc(angles);
+		mpu.get_gyro(angles);
 		//mpu.get_accel(accel);
 		//sprintf(strbuf, "%f %f %f\r\n", accel[0], accel[1], accel[2]);
 		//sprintf(strbuf,"%f\r\n",mpu.accel_magnitude());
-		sprintf(strbuf, "Roll:%f  Pitch:%f\r\n", angles[0], angles[1]);
+		//sprintf(strbuf, "Roll:%f  Pitch:%f\r\n", angles[0], angles[1]);]
+		sprintf(strbuf, "%f %f %f\r\n", angles[0], angles[1], angles[2]);
 		HAL_UART_Transmit(&huart2, (uint8_t*) strbuf, strlen(strbuf), 100);
-		HAL_Delay(50);
+		HAL_Delay(1);
 		/* USER CODE END WHILE */
 
 		/* USER CODE BEGIN 3 */

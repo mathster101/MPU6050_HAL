@@ -32,13 +32,18 @@ public:
 	HAL_StatusTypeDef get_accel(double *acc_buf);
 	HAL_StatusTypeDef get_gyro(double *gyro_buf);
 	HAL_StatusTypeDef get_rp_acc(double *angle_buf);
+	HAL_StatusTypeDef get_rp_gyr(double *angle_buf);
 	double accel_magnitude();
 	uint8_t whoami();
 
 private:
 	uint8_t accel_range, gyro_range;
+	uint32_t sys_tick;
 	float acc_scale_factor, gyro_scale_factor;
+	double gx_trim = 0, gy_trim = 0, gz_trim = 0;
 	double ax_internal, ay_internal, az_internal;
+	double gx_internal, gy_internal, gz_internal;
+	bool gyro_first_call = false;
 	I2C_HandleTypeDef *i2c_handle;
 
 	HAL_StatusTypeDef i2c_write_byte(uint8_t addr, uint8_t data_byte);

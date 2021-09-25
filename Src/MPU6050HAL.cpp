@@ -52,6 +52,7 @@ HAL_StatusTypeDef MPU6050_HAL::i2c_read_bytes(uint8_t addr, uint8_t *buffer,
  */
 HAL_StatusTypeDef MPU6050_HAL::initialize() {
 	uint8_t reg;
+	double gyro_cali[3], gx_trim_temp = 0, gy_trim_temp = 0, gz_trim_temp = 0;
 	set_ranges(1, 0);
 	i2c_write_byte(PWR_MGMT_1, 0x00);
 	if (i2c_write_byte(PWR_MGMT_1, 0x00) != HAL_OK)
@@ -64,7 +65,20 @@ HAL_StatusTypeDef MPU6050_HAL::initialize() {
 	reg = i2c_read_byte(ACCEL_CONFIG);
 	reg &= 0b00000111;
 	reg = 0b00000000;
-	return i2c_write_byte(ACCEL_CONFIG, reg);
+	if (i2c_write_byte(ACCEL_CONFIG, reg) != HAL_OK)
+		return HAL_ERROR;
+
+	for(int i = 0; i < 2000; i++){
+		get_gyro(gyro_cali);
+		gx_trim_temp += gyro_cali[0];
+		gy_trim_temp += gyro_cali[1];
+		gz_trim_temp += gyro_cali[2];
+	}
+	gx_trim = gx_trim_temp / 2000;
+	gy_trim = gy_trim_temp / 2000;
+	gz_trim = gz_trim_temp / 2000;
+
+	return HAL_OK;
 }
 
 /*
@@ -80,7 +94,7 @@ uint8_t MPU6050_HAL::whoami() {
 HAL_StatusTypeDef MPU6050_HAL::set_ranges(int acc, int gyro) {
 
 	/*
-	 * accel_range = 2g, 4g. 8g, 16g
+	 * accel_range = 2g, 4g, 8g, 16g
 	 * gyro_range = 250deg/s, 500deg/s,
 	 * 				1000deg/s, 2000deg/s
 	 * options = 0, 1, 2 , 3
@@ -147,9 +161,9 @@ HAL_StatusTypeDef MPU6050_HAL::get_gyro(double *gyro_buf) {
 	gx_raw = (buffer[0] << 8 | buffer[1]);
 	gy_raw = (buffer[2] << 8 | buffer[3]);
 	gz_raw = (buffer[4] << 8 | buffer[5]);
-	gyro_buf[0] = (double) gx_raw / gyro_scale_factor;
-	gyro_buf[1] = (double) gy_raw / gyro_scale_factor;
-	gyro_buf[2] = (double) gz_raw / gyro_scale_factor;
+	gyro_buf[0] = (double) gx_raw / gyro_scale_factor - gx_trim;
+	gyro_buf[1] = (double) gy_raw / gyro_scale_factor - gy_trim;
+	gyro_buf[2] = (double) gz_raw / gyro_scale_factor - gz_trim;
 	return HAL_OK;
 }
 
@@ -174,5 +188,31 @@ HAL_StatusTypeDef MPU6050_HAL::get_rp_acc(double *angle_buf) {
 	get_accel(acc_buffer);
 	angle_buf[0] = 180 * atan2(acc_buffer[1], sqrt(acc_buffer[0]*acc_buffer[0] + acc_buffer[2]*acc_buffer[2])) / M_PI;
 	angle_buf[1] = 180 * atan2(acc_buffer[0], sqrt(acc_buffer[1]*acc_buffer[1] + acc_buffer[2]*acc_buffer[2])) / M_PI;
+	return HAL_OK;
+}
+
+HAL_StatusTypeDef MPU6050_HAL::get_rp_gyr(double *angle_buf) {
+	if(!gyro_first_call){ // on first gyro call, get values from accel
+		get_rp_acc(angle_buf);
+		angle_buf[2] = 0;
+		sys_tick = HAL_GetTick();
+		gx_internal = angle_buf[0];
+		gy_internal = angle_buf[1];
+		gz_internal = angle_buf[2];
+		gyro_first_call = true;
+	}
+	else{
+		double gyro_buf[3];
+		uint32_t new_tick = HAL_GetTick();
+		uint32_t elapsed = new_tick - sys_tick;
+		get_gyro(gyro_buf);
+		angle_buf[0] = gx_internal + gyro_buf[0] * (elapsed);
+		angle_buf[1] = gy_internal + gyro_buf[1] * (elapsed);
+		angle_buf[2] = gz_internal + gyro_buf[2] * (elapsed);
+		gx_internal = angle_buf[0];
+		gy_internal = angle_buf[1];
+		gz_internal = angle_buf[2];
+		sys_tick = new_tick;
+	}
 	return HAL_OK;
 }
