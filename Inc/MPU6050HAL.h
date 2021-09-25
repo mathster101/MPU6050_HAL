@@ -25,8 +25,7 @@
 
 class MPU6050_HAL {
 public:
-
-	MPU6050_HAL(I2C_HandleTypeDef *i2c_object);
+	MPU6050_HAL(I2C_HandleTypeDef *i2c_object,GPIO_TypeDef *sclPort,uint16_t sclPin,GPIO_TypeDef *sdaPort,uint16_t sdaPin);
 	HAL_StatusTypeDef initialize();
 	HAL_StatusTypeDef set_ranges(int acc, int gyro);
 	HAL_StatusTypeDef get_accel(double *acc_buf);
@@ -35,8 +34,11 @@ public:
 	HAL_StatusTypeDef get_rp_gyr(double *angle_buf);
 	double accel_magnitude();
 	uint8_t whoami();
+	double elapsed;
 
 private:
+	uint16_t sclPin, sdaPin;
+	GPIO_TypeDef *sclPort, *sdaPort;
 	uint8_t accel_range, gyro_range;
 	uint32_t sys_tick;
 	float acc_scale_factor, gyro_scale_factor;
@@ -46,6 +48,7 @@ private:
 	bool gyro_first_call = false;
 	I2C_HandleTypeDef *i2c_handle;
 
+	void i2c_busy_resolve();
 	HAL_StatusTypeDef i2c_write_byte(uint8_t addr, uint8_t data_byte);
 	uint8_t i2c_read_byte(uint8_t addr);
 	HAL_StatusTypeDef i2c_read_bytes(uint8_t addr, uint8_t *buffer,
