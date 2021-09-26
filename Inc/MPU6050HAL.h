@@ -30,8 +30,8 @@ public:
 	HAL_StatusTypeDef set_ranges(int acc, int gyro);
 	HAL_StatusTypeDef get_accel(double *acc_buf);
 	HAL_StatusTypeDef get_gyro(double *gyro_buf);
-	HAL_StatusTypeDef get_rp_acc(double *angle_buf);
-	HAL_StatusTypeDef get_rp_gyr(double *angle_buf);
+	HAL_StatusTypeDef get_pr_acc(double *angle_buf);
+	HAL_StatusTypeDef get_pry(double *angle_buf);
 	double accel_magnitude();
 	uint8_t whoami();
 	double elapsed;
@@ -44,8 +44,8 @@ private:
 	float acc_scale_factor, gyro_scale_factor;
 	double gx_trim = 0, gy_trim = 0, gz_trim = 0;
 	double ax_internal, ay_internal, az_internal;
-	double gx_internal, gy_internal, gz_internal;
-	bool gyro_first_call = false;
+	double pitch_internal, roll_internal, yaw_internal;
+	bool gyro_first_call = true;
 	I2C_HandleTypeDef *i2c_handle;
 
 	void i2c_busy_resolve();

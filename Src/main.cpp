@@ -102,17 +102,20 @@ int main(void)
   /* USER CODE BEGIN 2 */
 	sprintf(strbuf, "\033\143");
 	HAL_UART_Transmit(&huart2, (uint8_t*)strbuf, strlen(strbuf), 100);
-	MPU6050_HAL mpu(&hi2c1,SCL_GPIO_Port,SCL_Pin,SDA_GPIO_Port,SDA_Pin);
+	sprintf(strbuf, "MCU ON \r\n");
+	HAL_UART_Transmit(&huart2, (uint8_t*)strbuf, strlen(strbuf), 100);
+	MPU6050_HAL mpu(&hi2c1, SCL_GPIO_Port, SCL_Pin, SDA_GPIO_Port, SDA_Pin);
+	HAL_Delay(500);
 	//double accel[3];
 	double angles[3];
+
 	if (mpu.initialize() == HAL_OK) {
-		sprintf(strbuf, "Sensor Initialized\r\n");
+		sprintf(strbuf, "MPU6050 Initialized\r\n");
 		HAL_UART_Transmit(&huart2, (uint8_t*) strbuf, strlen(strbuf), 100);
 		HAL_Delay(1000);
 	}
 	else{
 		sprintf(strbuf, "Sensor Error\r\n");
-		HAL_Delay(3000);
 		HAL_UART_Transmit(&huart2, (uint8_t*) strbuf, strlen(strbuf), 100);
 		while(1);
 	}
@@ -122,11 +125,11 @@ int main(void)
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
 	while (1) {
-		mpu.get_rp_gyr(angles);
-		//mpu.get_accel(accel);
+		mpu.get_pry(angles);
+		//mpu.get_pr_acc(angles);
 		//sprintf(strbuf, "%f %f %f\r\n", accel[0], accel[1], accel[2]);
-		//sprintf(strbuf,"%f\r\n",mpu.accel_magnitude());
-		//sprintf(strbuf, "Roll:%f  Pitch:%f\r\n", angles[0], angles[1]);]
+		//sprintf(strbuf,"%f\r\n",angles[0]);
+		//sprintf(strbuf, "Pitch:%f  Roll:%f\r\n", angles[0], angles[1]);
 		sprintf(strbuf, "%f,%f,%f\r\n", angles[0], angles[1], angles[2]);
 		HAL_UART_Transmit(&huart2, (uint8_t*) strbuf, strlen(strbuf), 100);
 		HAL_Delay(1);

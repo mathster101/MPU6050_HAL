@@ -65,7 +65,7 @@ HAL_StatusTypeDef MPU6050_HAL::i2c_read_bytes(uint8_t addr, uint8_t *buffer,
 HAL_StatusTypeDef MPU6050_HAL::initialize() {
 	uint8_t reg;
 	double gyro_cali[3], gx_trim_temp = 0, gy_trim_temp = 0, gz_trim_temp = 0;
-	set_ranges(1, 0);
+	set_ranges(2, 3);
 	if (i2c_write_byte(PWR_MGMT_1, 0x00) != HAL_OK)
 		return HAL_ERROR;
 	reg = i2c_read_byte(GYRO_CONFIG);
@@ -75,7 +75,7 @@ HAL_StatusTypeDef MPU6050_HAL::initialize() {
 		return HAL_ERROR;
 	reg = i2c_read_byte(ACCEL_CONFIG);
 	reg &= 0b00000111;
-	reg = 0b00000000;
+	reg = 0b00000000; // look into this too?
 	if (i2c_write_byte(ACCEL_CONFIG, reg) != HAL_OK)
 		return HAL_ERROR;
 
@@ -89,7 +89,7 @@ HAL_StatusTypeDef MPU6050_HAL::initialize() {
 	gx_trim = gx_trim_temp / avg;
 	gy_trim = gy_trim_temp / avg;
 	gz_trim = gz_trim_temp / avg;
-
+	gyro_first_call = true;
 	return HAL_OK;
 }
 
@@ -163,7 +163,7 @@ HAL_StatusTypeDef MPU6050_HAL::get_accel(double *acc_buf) {
 }
 
 /*
- * Read Gyro data
+ * Read raw Gyro data
  */
 HAL_StatusTypeDef MPU6050_HAL::get_gyro(double *gyro_buf) {
 	uint8_t buffer[6];
@@ -173,9 +173,14 @@ HAL_StatusTypeDef MPU6050_HAL::get_gyro(double *gyro_buf) {
 	gx_raw = (buffer[0] << 8 | buffer[1]);
 	gy_raw = (buffer[2] << 8 | buffer[3]);
 	gz_raw = (buffer[4] << 8 | buffer[5]);
-	gyro_buf[0] = (double) gx_raw / gyro_scale_factor - gx_trim;
-	gyro_buf[1] = (double) gy_raw / gyro_scale_factor - gy_trim;
-	gyro_buf[2] = (double) gz_raw / gyro_scale_factor - gz_trim;
+	/*
+	 gyro_buf[0] = (double) gx_raw / gyro_scale_factor - gx_trim;
+	 gyro_buf[1] = (double) gy_raw / gyro_scale_factor - gy_trim;
+	 gyro_buf[2] = (double) gz_raw / gyro_scale_factor - gz_trim;
+	 */
+	gyro_buf[0] = gx_raw - gx_trim;
+	gyro_buf[1] = gy_raw - gy_trim;
+	gyro_buf[2] = gz_raw - gz_trim;
 	return HAL_OK;
 }
 
@@ -191,64 +196,90 @@ double MPU6050_HAL::accel_magnitude() {
 }
 
 /*
- * Calculates roll and pitch using the accelerometer (degrees)
+ * Calculates pitch and roll using the accelerometer (degrees)
  */
 //pitch = 180 * atan2(accelX, sqrt(accelY*accelY + accelZ*accelZ))/PI;
 //roll = 180 * atan2(accelY, sqrt(accelX*accelX + accelZ*accelZ))/PI;
-HAL_StatusTypeDef MPU6050_HAL::get_rp_acc(double *angle_buf) {
-	double acc_buffer[3]; // ax, ay, az
-	get_accel(acc_buffer);
-	angle_buf[0] = 180
-			* atan2(acc_buffer[1],
-					sqrt(
-							acc_buffer[0] * acc_buffer[0]
-									+ acc_buffer[2] * acc_buffer[2])) / M_PI;
-	angle_buf[1] = 180
-			* atan2(acc_buffer[0],
-					sqrt(
-							acc_buffer[1] * acc_buffer[1]
-									+ acc_buffer[2] * acc_buffer[2])) / M_PI;
+HAL_StatusTypeDef MPU6050_HAL::get_pr_acc(double *angle_buf) {
+	double mag = accel_magnitude();
+	angle_buf[0] = asin((float) ay_internal / mag) * -57.296;
+	angle_buf[1] = asin((float) ax_internal / mag) * 57.296;
 	return HAL_OK;
 }
 
 /*
- * Calculates roll and pitch using the gyro (degrees)
+ * Calculates pitch, roll and yaw using the gyro + accelerometer (degrees)
+ * gx for pitch
+ * gy for roll
+ * gz for yaw
  */
-HAL_StatusTypeDef MPU6050_HAL::get_rp_gyr(double *angle_buf) {
-	if (!gyro_first_call) { // on first gyro call, get values from accel
-		get_rp_acc(angle_buf);
+HAL_StatusTypeDef MPU6050_HAL::get_pry(double *angle_buf) {
+	if (gyro_first_call) { // on first gyro call, get values from accel
+		get_pr_acc(angle_buf);
 		angle_buf[2] = 0;
 		sys_tick = HAL_GetTick();
-		gx_internal = angle_buf[0];
-		gy_internal = angle_buf[1];
-		gz_internal = angle_buf[2];
-		gyro_first_call = true;
+		pitch_internal = angle_buf[0];
+		roll_internal = angle_buf[1];
+		yaw_internal = 0; //angle_buf[2];
+		gyro_first_call = false;
 	} else {
+
+		uint32_t new_tick;
+		float alpha = 0.98;
 		double gyro_buf[3];
-		uint32_t new_tick = HAL_GetTick();
-		elapsed = (int32_t) (new_tick - sys_tick);
-		elapsed /= 1000;
+		double angles_acc[2];
 		get_gyro(gyro_buf);
-		angle_buf[0] = gx_internal + gyro_buf[0] * (elapsed);
-		angle_buf[1] = gy_internal + gyro_buf[1] * (elapsed);
-		angle_buf[2] = gz_internal + gyro_buf[2] * (elapsed);
-		gx_internal = angle_buf[0];
-		gy_internal = angle_buf[1];
-		gz_internal = angle_buf[2];
+		new_tick = HAL_GetTick();
+		elapsed = (int32_t) (new_tick - sys_tick);
+		elapsed /= 1000; // time in seconds
+		angle_buf[0] = pitch_internal + (gyro_buf[0] * elapsed / gyro_scale_factor);
+		angle_buf[1] = roll_internal + (gyro_buf[1] * elapsed / gyro_scale_factor);
+		angle_buf[2] = yaw_internal + (gyro_buf[2] * elapsed / gyro_scale_factor);
+		//If the IMU has yawed transfer the roll angle to the pitch angle
+		angle_buf[0] += angle_buf[1] * sin(M_PI * (gyro_buf[2] * elapsed / gyro_scale_factor) / 180);
+		//If the IMU has yawed transfer the pitch angle to the roll angle
+		angle_buf[1] += angle_buf[0] * sin(M_PI * (gyro_buf[2] * elapsed / gyro_scale_factor) / 180);
+
+		get_pr_acc(angles_acc);
+		angle_buf[0] = alpha * angle_buf[0] + (1 - alpha) * angles_acc[0];
+		angle_buf[1] = alpha * angle_buf[1] + (1 - alpha) * angles_acc[1];
+		pitch_internal = angle_buf[0];
+		roll_internal = angle_buf[1];
+		yaw_internal = angle_buf[2];
+
+
+		bool angle_err = false;
+		for(int i = 0; i < 3 ; i++)
+		{
+			if(angle_buf[i] > 100 || angle_buf[i] < -100){
+				angle_err = true;
+				break;
+			}
+		}
+		if(angle_err)
+			alpha = 0.5; // rapidly correct for angle out of bounds
+		else
+			alpha = 0.97;
 		sys_tick = new_tick;
 	}
 	return HAL_OK;
 }
 
+
+/*
+ * Resolves permanent "HAL_BUSY" flag on the I2C bus
+ * Problem detailed here -> [https://www.st.com/resource/en/errata_sheet/es0136-stm32f100xc-stm32f100xd-and-stm32f100xe-highdensity-value-line-device-limitations-stmicroelectronics.pdf]
+ * This function is a modification of this -> [https://electronics.stackexchange.com/a/281046]
+ */
 void MPU6050_HAL::i2c_busy_resolve() {
 	GPIO_InitTypeDef GPIO_InitStructure;
-
+	uint32_t gpio_alternate = GPIO_AF4_I2C1;
 	// 1. Clear PE bit.
 	i2c_handle->Instance->CR1 &= ~(0x0001);
 
 	//  2. Configure the SCL and SDA I/Os as General Purpose Output Open-Drain, High level (Write 1 to GPIOx_ODR).
 	GPIO_InitStructure.Mode = GPIO_MODE_OUTPUT_OD;
-	GPIO_InitStructure.Alternate = GPIO_AF4_I2C1;
+	GPIO_InitStructure.Alternate = gpio_alternate;
 	GPIO_InitStructure.Pull = GPIO_PULLUP;
 	GPIO_InitStructure.Speed = GPIO_SPEED_FREQ_HIGH;
 
@@ -303,7 +334,7 @@ void MPU6050_HAL::i2c_busy_resolve() {
 
 	// 12. Configure the SCL and SDA I/Os as Alternate function Open-Drain.
 	GPIO_InitStructure.Mode = GPIO_MODE_AF_OD;
-	//GPIO_InitStructure.Alternate = I2C_PIN_MAP;
+	GPIO_InitStructure.Alternate = gpio_alternate;
 
 	GPIO_InitStructure.Pin = sclPin;
 	HAL_GPIO_Init(sclPort, &GPIO_InitStructure);
