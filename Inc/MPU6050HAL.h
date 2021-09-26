@@ -29,30 +29,30 @@ public:
 	HAL_StatusTypeDef initialize();
 	HAL_StatusTypeDef set_ranges(int acc, int gyro);
 	HAL_StatusTypeDef get_accel(double *acc_buf);
-	HAL_StatusTypeDef get_gyro(double *gyro_buf);
-	HAL_StatusTypeDef get_pr_acc(double *angle_buf);
 	HAL_StatusTypeDef get_pry(double *angle_buf);
-	double accel_magnitude();
+	float get_temperature();
 	uint8_t whoami();
-	double elapsed;
 
 private:
-	uint16_t sclPin, sdaPin;
+	I2C_HandleTypeDef *i2c_handle;
 	GPIO_TypeDef *sclPort, *sdaPort;
+	bool gyro_first_call;
 	uint8_t accel_range, gyro_range;
+	uint16_t sclPin, sdaPin;
 	uint32_t sys_tick;
 	float acc_scale_factor, gyro_scale_factor;
-	double gx_trim = 0, gy_trim = 0, gz_trim = 0;
+	double elapsed;
+	double gx_trim, gy_trim, gz_trim;
 	double ax_internal, ay_internal, az_internal;
 	double pitch_internal, roll_internal, yaw_internal;
-	bool gyro_first_call = true;
-	I2C_HandleTypeDef *i2c_handle;
 
 	void i2c_busy_resolve();
 	HAL_StatusTypeDef i2c_write_byte(uint8_t addr, uint8_t data_byte);
 	uint8_t i2c_read_byte(uint8_t addr);
-	HAL_StatusTypeDef i2c_read_bytes(uint8_t addr, uint8_t *buffer,
-			int num_bytes = 1);
+	HAL_StatusTypeDef i2c_read_bytes(uint8_t addr, uint8_t *buffer, int num_bytes = 1);
+	HAL_StatusTypeDef get_gyro(double *gyro_buf);
+	HAL_StatusTypeDef get_pr_acc(double *angle_buf);
+	double accel_magnitude();
 };
 
 #endif /* SRC_MPU6050HAL_H_ */

@@ -25,12 +25,11 @@
 #include <MPU6050HAL.h>
 #include <string.h>
 #include <stdio.h>
-#include <mathster_fir.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-//https://electronics.stackexchange.com/questions/267972/i2c-busy-flag-strange-behaviour
+
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -46,12 +45,11 @@
 /* Private variables ---------------------------------------------------------*/
 I2C_HandleTypeDef hi2c1;
 
-TIM_HandleTypeDef htim10;
+TIM_HandleTypeDef htim10; // unused in this demo
 
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
-char strbuf[200];
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -84,7 +82,9 @@ int main(void)
   HAL_Init();
 
   /* USER CODE BEGIN Init */
-
+  MPU6050_HAL mpu(&hi2c1, SCL_GPIO_Port, SCL_Pin, SDA_GPIO_Port, SDA_Pin);
+  char strbuf[200];
+  double angles[3];
   /* USER CODE END Init */
 
   /* Configure the system clock */
@@ -104,20 +104,15 @@ int main(void)
 	HAL_UART_Transmit(&huart2, (uint8_t*)strbuf, strlen(strbuf), 100);
 	sprintf(strbuf, "MCU ON \r\n");
 	HAL_UART_Transmit(&huart2, (uint8_t*)strbuf, strlen(strbuf), 100);
-	MPU6050_HAL mpu(&hi2c1, SCL_GPIO_Port, SCL_Pin, SDA_GPIO_Port, SDA_Pin);
 	HAL_Delay(500);
-	//double accel[3];
-	double angles[3];
 
 	if (mpu.initialize() == HAL_OK) {
 		sprintf(strbuf, "MPU6050 Initialized\r\n");
 		HAL_UART_Transmit(&huart2, (uint8_t*) strbuf, strlen(strbuf), 100);
-		HAL_Delay(1000);
 	}
 	else{
 		sprintf(strbuf, "Sensor Error\r\n");
 		HAL_UART_Transmit(&huart2, (uint8_t*) strbuf, strlen(strbuf), 100);
-		while(1);
 	}
 
   /* USER CODE END 2 */
@@ -126,13 +121,9 @@ int main(void)
   /* USER CODE BEGIN WHILE */
 	while (1) {
 		mpu.get_pry(angles);
-		//mpu.get_pr_acc(angles);
-		//sprintf(strbuf, "%f %f %f\r\n", accel[0], accel[1], accel[2]);
-		//sprintf(strbuf,"%f\r\n",angles[0]);
-		//sprintf(strbuf, "Pitch:%f  Roll:%f\r\n", angles[0], angles[1]);
 		sprintf(strbuf, "%f,%f,%f\r\n", angles[0], angles[1], angles[2]);
 		HAL_UART_Transmit(&huart2, (uint8_t*) strbuf, strlen(strbuf), 100);
-		HAL_Delay(1);
+		HAL_Delay(10);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -156,14 +147,13 @@ void SystemClock_Config(void)
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
-  RCC_OscInitStruct.HSIState = RCC_HSI_ON;
-  RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
+  RCC_OscInitStruct.HSEState = RCC_HSE_BYPASS;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
-  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI;
-  RCC_OscInitStruct.PLL.PLLM = 16;
-  RCC_OscInitStruct.PLL.PLLN = 336;
-  RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV4;
+  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
+  RCC_OscInitStruct.PLL.PLLM = 4;
+  RCC_OscInitStruct.PLL.PLLN = 100;
+  RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
   RCC_OscInitStruct.PLL.PLLQ = 4;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
@@ -178,7 +168,7 @@ void SystemClock_Config(void)
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK)
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_3) != HAL_OK)
   {
     Error_Handler();
   }

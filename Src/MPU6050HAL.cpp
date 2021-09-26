@@ -14,6 +14,8 @@ MPU6050_HAL::MPU6050_HAL(I2C_HandleTypeDef *i2c_object, GPIO_TypeDef *sclPort,
 	this->sclPin = sclPin;
 	this->sdaPort = sdaPort;
 	this->sdaPin = sdaPin;
+	gx_trim = gy_trim = gz_trim = 0;
+	gyro_first_call = true;
 
 }
 
@@ -214,8 +216,11 @@ HAL_StatusTypeDef MPU6050_HAL::get_pr_acc(double *angle_buf) {
  * gz for yaw
  */
 HAL_StatusTypeDef MPU6050_HAL::get_pry(double *angle_buf) {
+	HAL_StatusTypeDef result;
 	if (gyro_first_call) { // on first gyro call, get values from accel
-		get_pr_acc(angle_buf);
+		result = get_pr_acc(angle_buf);
+		if(result != HAL_OK)
+			return result;
 		angle_buf[2] = 0;
 		sys_tick = HAL_GetTick();
 		pitch_internal = angle_buf[0];
@@ -228,25 +233,28 @@ HAL_StatusTypeDef MPU6050_HAL::get_pry(double *angle_buf) {
 		float alpha = 0.98;
 		double gyro_buf[3];
 		double angles_acc[2];
-		get_gyro(gyro_buf);
+		result = get_gyro(gyro_buf);
+		if(result != HAL_OK)
+			return result;
 		new_tick = HAL_GetTick();
 		elapsed = (int32_t) (new_tick - sys_tick);
 		elapsed /= 1000; // time in seconds
 		angle_buf[0] = pitch_internal + (gyro_buf[0] * elapsed / gyro_scale_factor);
 		angle_buf[1] = roll_internal + (gyro_buf[1] * elapsed / gyro_scale_factor);
 		angle_buf[2] = yaw_internal + (gyro_buf[2] * elapsed / gyro_scale_factor);
-		//If the IMU has yawed transfer the roll angle to the pitch angle
+
+		//compensate for IMU yaw
 		angle_buf[0] += angle_buf[1] * sin(M_PI * (gyro_buf[2] * elapsed / gyro_scale_factor) / 180);
-		//If the IMU has yawed transfer the pitch angle to the roll angle
 		angle_buf[1] += angle_buf[0] * sin(M_PI * (gyro_buf[2] * elapsed / gyro_scale_factor) / 180);
 
-		get_pr_acc(angles_acc);
+		result = get_pr_acc(angles_acc);
+		if(result != HAL_OK)
+			return result;
 		angle_buf[0] = alpha * angle_buf[0] + (1 - alpha) * angles_acc[0];
 		angle_buf[1] = alpha * angle_buf[1] + (1 - alpha) * angles_acc[1];
 		pitch_internal = angle_buf[0];
 		roll_internal = angle_buf[1];
 		yaw_internal = angle_buf[2];
-
 
 		bool angle_err = false;
 		for(int i = 0; i < 3 ; i++)
@@ -259,12 +267,26 @@ HAL_StatusTypeDef MPU6050_HAL::get_pry(double *angle_buf) {
 		if(angle_err)
 			alpha = 0.5; // rapidly correct for angle out of bounds
 		else
-			alpha = 0.97;
+			alpha = 0.98;
 		sys_tick = new_tick;
 	}
 	return HAL_OK;
 }
 
+/*
+ * Read internal temperature
+ */
+
+float MPU6050_HAL::get_temperature(){
+
+	uint8_t buffer[2];
+	int16_t raw_temp;
+	if(i2c_read_bytes(TEMP_REG_START, buffer, 2) != HAL_OK)
+		return -1;
+	raw_temp = buffer[0]<<8 | buffer[1];
+	return (double)(raw_temp / 340 + 36.5);
+
+}
 
 /*
  * Resolves permanent "HAL_BUSY" flag on the I2C bus
