@@ -123,7 +123,7 @@ int main(void)
 		mpu.get_pry(angles);
 		sprintf(strbuf, "%f,%f,%f\r\n", angles[0], angles[1], angles[2]);
 		HAL_UART_Transmit(&huart2, (uint8_t*) strbuf, strlen(strbuf), 100);
-		HAL_Delay(10);
+		HAL_Delay(50);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */

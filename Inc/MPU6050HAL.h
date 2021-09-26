@@ -42,6 +42,7 @@ private:
 	uint32_t sys_tick;
 	float acc_scale_factor, gyro_scale_factor;
 	double elapsed;
+	float alpha;
 	double gx_trim, gy_trim, gz_trim;
 	double ax_internal, ay_internal, az_internal;
 	double pitch_internal, roll_internal, yaw_internal;

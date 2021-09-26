@@ -16,6 +16,7 @@ MPU6050_HAL::MPU6050_HAL(I2C_HandleTypeDef *i2c_object, GPIO_TypeDef *sclPort,
 	this->sdaPin = sdaPin;
 	gx_trim = gy_trim = gz_trim = 0;
 	gyro_first_call = true;
+	alpha = 0.95;
 
 }
 
@@ -230,7 +231,6 @@ HAL_StatusTypeDef MPU6050_HAL::get_pry(double *angle_buf) {
 	} else {
 
 		uint32_t new_tick;
-		float alpha = 0.98;
 		double gyro_buf[3];
 		double angles_acc[2];
 		result = get_gyro(gyro_buf);
@@ -265,9 +265,9 @@ HAL_StatusTypeDef MPU6050_HAL::get_pry(double *angle_buf) {
 			}
 		}
 		if(angle_err)
-			alpha = 0.5; // rapidly correct for angle out of bounds
+			alpha = 0.1; // rapidly correct for angle out of bounds
 		else
-			alpha = 0.98;
+			alpha = 0.95;
 		sys_tick = new_tick;
 	}
 	return HAL_OK;
