@@ -23,9 +23,11 @@
 #define PWR_MGMT_2 0x6C
 #define WHO_AM_I 0x75
 
-class MPU6050_HAL {
+class MPU6050_HAL
+{
 public:
-	MPU6050_HAL(I2C_HandleTypeDef *i2c_object,GPIO_TypeDef *sclPort,uint16_t sclPin,GPIO_TypeDef *sdaPort,uint16_t sdaPin);
+	MPU6050_HAL(I2C_HandleTypeDef *i2c_object, GPIO_TypeDef *sclPort,
+			uint16_t sclPin, GPIO_TypeDef *sdaPort, uint16_t sdaPin);
 	HAL_StatusTypeDef initialize();
 	HAL_StatusTypeDef set_ranges(int acc, int gyro);
 	HAL_StatusTypeDef get_accel(double *acc_buf);
@@ -50,7 +52,8 @@ private:
 	void i2c_busy_resolve();
 	HAL_StatusTypeDef i2c_write_byte(uint8_t addr, uint8_t data_byte);
 	uint8_t i2c_read_byte(uint8_t addr);
-	HAL_StatusTypeDef i2c_read_bytes(uint8_t addr, uint8_t *buffer, int num_bytes = 1);
+	HAL_StatusTypeDef i2c_read_bytes(uint8_t addr, uint8_t *buffer,
+			int num_bytes = 1);
 	HAL_StatusTypeDef get_gyro(double *gyro_buf);
 	HAL_StatusTypeDef get_pr_acc(double *angle_buf);
 	double accel_magnitude();
